@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Test Cámara</title>
+<style>
+  body { margin:0; background:#111; color:#fff; font-family:system-ui; }
+  header { padding:10px 12px; font-weight:600; }
+  #wrap { position:relative; aspect-ratio:4/3; background:#000; }
+  video { width:100%; height:100%; display:block; object-fit:cover; background:#000; }
+  .btns { display:flex; gap:8px; padding:10px; }
+  button { padding:10px 14px; border:0; border-radius:10px; background:#2d6cdf; color:#fff; font-weight:700; }
+  pre { background:#222; padding:10px; overflow:auto; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+  <header>Prueba rápida de cámara (getUserMedia)</header>
+  <div id="wrap">
+    <video id="v" playsinline autoplay muted></video>
+  </div>
+  <div class="btns">
+    <button id="start">Iniciar cámara</button>
+    <button id="stop">Detener</button>
+  </div>
+  <pre id="log">Listo…</pre>
+<script>
+  const v = document.getElementById('v');
+  const log = (...m) => { const p=document.getElementById('log'); p.textContent += "\n" + m.join(' '); }
+  let stream=null, track=null;
+
+  async function start() {
+    try {
+      // Perfil alto → fallback → cualquier cámara
+      let constraints = { video: { facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} }, audio:false };
+      try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
+      catch(e1) {
+        log('[fallback 1]', e1.name);
+        try { stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:'environment'}, audio:false }); }
+        catch(e2) {
+          log('[fallback 2]', e2.name);
+          stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false });
+        }
+      }
+      track = stream.getVideoTracks()[0];
+      v.srcObject = stream;
+      v.setAttribute('playsinline','true');
+      v.muted = true;
+
+      await new Promise(res => {
+        if (v.readyState >= 2 && v.videoWidth > 0) return res();
+        v.addEventListener('loadedmetadata', () => res(), { once:true });
+      });
+      log('readyState=', v.readyState, 'size=', v.videoWidth+'x'+v.videoHeight, 'facingMode?', track.getSettings?.().facingMode);
+      await v.play().catch(()=>{});
+    } catch (err) {
+      log('ERROR getUserMedia:', err.name, err.message);
+      alert('Permisos o cámara bloqueada: ' + err.message);
+    }
+  }
+
+  function stop() {
+    try {
+      if (stream) stream.getTracks().forEach(t => { try{ t.stop(); }catch{} });
+      v.pause(); v.removeAttribute('src'); v.srcObject = null; v.load();
+      stream=null; track=null;
+      log('Cámara detenida y liberada');
+    } catch(e) { log('ERROR stop:', e.message); }
+  }
+
+  document.getElementById('start').onclick = start;
+  document.getElementById('stop').onclick = stop;
+</script>
+</body>
+</html>
